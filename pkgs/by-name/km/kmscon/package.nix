@@ -2,7 +2,6 @@
   lib,
   stdenv,
   fetchFromGitHub,
-  fetchpatch2,
   meson,
   libtsm,
   systemdLibs,
@@ -84,8 +83,6 @@ stdenv.mkDerivation (finalAttrs: {
     "out"
     "man"
   ];
-
-  mesonFlags = [ (lib.mesonEnable "libseat" true) ];
 
   env = {
     PKG_CONFIG_SYSTEMD_SYSTEMDSYSTEMUNITDIR = "${placeholder "out"}/lib/systemd/system";
