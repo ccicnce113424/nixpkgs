@@ -116,12 +116,22 @@ in
         enablePkexecWrapper = lib.mkDefault true;
       };
       services.accounts-daemon.enable = true;
-      services.dbus.packages = with pkgs; [
-        cinnamon
-        cinnamon-screensaver
-        nemo-with-extensions
-        xapp
-      ];
+
+      # Packages from below that ship D-Bus service files.  The D-Bus daemons do
+      # not look at the system profile, so they have to be registered explicitly.
+      services.dbus.packages = utils.removePackagesByName (
+        with pkgs;
+        [
+          cinnamon
+          cinnamon-settings-daemon
+          cinnamon-screensaver
+          nemo-with-extensions
+          xapp
+
+          # accessibility
+          onboard
+        ]
+      ) config.environment.cinnamon.excludePackages;
       systemd.packages =
         with pkgs;
         [
@@ -291,6 +301,24 @@ in
           file-roller
           gucharmap
         ] config.environment.cinnamon.excludePackages;
+
+      # The D-Bus daemons do not look at the system profile, so the packages
+      # above that ship D-Bus service files have to be registered explicitly.
+      services.dbus.packages = utils.removePackagesByName (
+        with pkgs;
+        [
+          # cinnamon xapp
+          xed-editor
+          xreader
+
+          # external apps shipped with linux-mint
+          celluloid
+          gnome-calculator
+          gnome-calendar
+          gnome-screenshot
+          file-roller
+        ]
+      ) config.environment.cinnamon.excludePackages;
     })
   ];
 }

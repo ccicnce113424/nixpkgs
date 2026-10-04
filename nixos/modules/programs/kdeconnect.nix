@@ -28,6 +28,9 @@
       environment.systemPackages = lib.optionals (cfg.package != null) [
         cfg.package
       ];
+      services.dbus.packages = lib.optionals (cfg.package != null) [
+        cfg.package
+      ];
       networking.firewall = rec {
         allowedTCPPortRanges = [
           {
