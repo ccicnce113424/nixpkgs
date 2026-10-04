@@ -1,13 +1,37 @@
 # NVIDIA driver packages
 
-The drivers are built from the files here. `default.nix` defines one attribute
-per driver branch in `nvidiaPackages`, reachable as
-`config.boot.kernelPackages.nvidiaPackages` or `pkgs.linuxPackages.nvidiaPackages`,
-and exports the builder as `nvidiaPackages.mkDriver`. That builder is `generic`
-in `default.nix`; the per-driver arguments are handled in `generic.nix`.
+The drivers are built from the files here. `default.nix` is a factory: called
+without a kernel it returns the userspace half of every driver branch, and
+`linuxPackages` calls it again with one to get the kernel modules too.
 
-Each entry names a version and a set of hashes. The version selects the URLs,
-the hashes pin the downloaded content.
+```nix
+pkgs.nvidiaPackages.production              # from default.nix, no kernel
+pkgs.linuxPackages.nvidiaPackages.production # the same factory, with a kernel
+```
+
+`nvidiaPackages` is a `lib.makeScope` set, so a whole new branch can be added
+with `overrideScope`. A branch is a `lib.makeExtensible` set and holds:
+
+| attribute       | what it is                                                     |
+| --------------- | -------------------------------------------------------------- |
+| `branch`        | the branch name, e.g. `production`                             |
+| `version`       | the driver version                                             |
+| `driver`        | the driver package: `out`, `bin`, `firmware`, `lib32` outputs |
+| `settings`      | nvidia-settings, with `libXNVCtrl` in its `passthru`           |
+| `modprobe`      | nvidia-modprobe                                                |
+| `persistenced`  | nvidia-persistenced                                            |
+| `fabricmanager` | nv-fabricmanager, on the data center branches only             |
+| `mod`, `open`   | the kernel modules, only from `linuxPackages`                  |
+
+`out`, `bin`, `firmware` and `lib32` warn and hand back the driver's own output
+of that name; `modsrc` throws. Where the driver builds no such output the alias
+throws too, naming the branch: `legacy_340` and `legacy_390` have no `lib32`,
+and those two plus `legacy_470` have no `firmware`. A branch carries these
+because `lib.makeScope` is not used for one: a scope hands out a `callPackage`
+bound to itself, and taking that forces every member, so no member may fail to
+evaluate.
+
+`nvidiaPackages.mkDriver` builds a branch that is not in nixpkgs.
 
 ## Adding or updating a driver in nixpkgs
 
@@ -101,7 +125,7 @@ For a version that is not in nixpkgs, call `mkDriver` from your configuration:
 ```nix
 { config, ... }:
 {
-  hardware.nvidia.package = config.boot.kernelPackages.nvidiaPackages.mkDriver {
+  hardware.nvidia.package = pkgs.nvidiaPackages.mkDriver {
     version = "595.104.02";
     sha256_64bit = "";
     sha256_aarch64 = "";
@@ -111,6 +135,9 @@ For a version that is not in nixpkgs, call `mkDriver` from your configuration:
     persistencedSha256 = "";
     modprobeSha256 = "";
   };
+
+  # `hardware.nvidia.kernelModules` follows automatically, looking the branch
+  # up in `config.boot.kernelPackages.nvidiaPackages`.
 }
 ```
 
@@ -140,5 +167,5 @@ can reach. The helper script checks every URL of a source on its own: a URL
 that returns 404 is reported as not published and does not fail the run unless
 `--strict` is given, while a source whose URLs all return 404 fails.
 
-`hardware.nvidia.open` selects the open kernel modules and uses the package's
-`.open` output when set to `true`.
+`hardware.nvidia.open` selects the open kernel modules, which
+`hardware.nvidia.kernelModules` then picks up from the branch.
