@@ -5,8 +5,13 @@ without a kernel it returns the userspace half of every driver branch, and
 `linuxPackages` calls it again with one to get the kernel modules too.
 
 ```nix
-pkgs.nvidiaPackages.production              # from default.nix, no kernel
-pkgs.linuxPackages.nvidiaPackages.production # the same factory, with a kernel
+{
+  # from default.nix, no kernel
+  driver = pkgs.nvidiaPackages.production;
+
+  # the same factory, with a kernel
+  driverWithModules = pkgs.linuxPackages.nvidiaPackages.production;
+}
 ```
 
 `nvidiaPackages` is a `lib.makeScope` set, so a whole new branch can be added
@@ -26,10 +31,7 @@ with `overrideScope`. A branch is a `lib.makeExtensible` set and holds:
 `out`, `bin`, `firmware` and `lib32` warn and hand back the driver's own output
 of that name; `modsrc` throws. Where the driver builds no such output the alias
 throws too, naming the branch: `legacy_340` and `legacy_390` have no `lib32`,
-and those two plus `legacy_470` have no `firmware`. A branch carries these
-because `lib.makeScope` is not used for one: a scope hands out a `callPackage`
-bound to itself, and taking that forces every member, so no member may fail to
-evaluate.
+and those two plus `legacy_470` have no `firmware`.
 
 `nvidiaPackages.mkDriver` builds a branch that is not in nixpkgs.
 
@@ -39,7 +41,7 @@ Add an entry to `default.nix`, or change the hashes of an existing one:
 
 ```nix
 {
-  production = generic {
+  production = mkBranch {
     version = "595.104.02";
     sha256_64bit = "sha256-...";
     sha256_aarch64 = "sha256-...";
@@ -81,8 +83,8 @@ After a version change the hashes change too. Update them with the helper
 script in `maintainers/scripts/nvidia-source-hashes`, or by building and
 reading the mismatch error (see the next section).
 
-Adding a legacy driver also means adding it to `pkgs/top-level/linux-kernels.nix`
-in the `nvidia_x11_legacy*` entries.
+Adding a legacy driver also means adding a `nvidia_x11_legacy*` throw to
+`pkgs/top-level/linux-kernels.nix`, so the old name fails with the replacement.
 
 ## Getting and checking hashes
 
@@ -104,12 +106,12 @@ source in `linuxPackages.nvidiaPackages`. Run it from the nixpkgs checkout.
 The hash is computed the way nixpkgs computes it: the unpacked tree for the
 `fetchzip` sources, and after `postFetch` for the open kernel modules. Paste
 the printed value into the matching hash field. One hash covers all URLs of a
-source, so the values printed for those URLs should be equal.
+source, so the values printed for those URLs must match.
 
 Without `--prefetch` the script checks the declared hashes and reports any
-mismatch. `--path` filters by component path, such as `production` or
-`passthru.open`. `--systems` restricts the platforms, and `--list` shows what
-would run without downloading.
+mismatch. `--path` filters by component path, such as `production` or `open`.
+`--systems` restricts the platforms, and `--list` shows what would run without
+downloading.
 
 Each URL is tested on its own. A normal build stops at the first URL that
 works, so it never notices a hash that only matches one of them.
